@@ -1,0 +1,11 @@
+[workspace]
+members = [
+
+  "rgengine",
+  "sandbox",
+]
+default-members = ["sandbox"]
+resolver = "2"
+
+[workspace.dependencies]
+spdlog-rs = { version = "0.4.1", features = ["source-location"] }

@@ -1,0 +1,7 @@
+[package]
+name = "rgengine"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+spdlog-rs = {workspace = true}
