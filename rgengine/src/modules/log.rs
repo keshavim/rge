@@ -1,3 +1,6 @@
+#![allow(unused_macros)]
+#![allow(unused_imports)]
+
 use spdlog::{
     formatter::{Formatter, FormatterContext},
     prelude::*,
@@ -40,10 +43,10 @@ impl Formatter for ColoredFormatter {
         // Write the formatted log message with colors
         write!(
             dest,
-            "{}[{source}] [{level}] {logger}: {payload}{}{}",
+            "{0}[{source}] [{level}] {logger}:{1}{payload}{2}{1}",
             color_code,
-            reset_code,
             eol,
+            reset_code,
             source = record.source_location().map_or("unknown", |loc| loc.file()),
             level = record.level(),
             logger = record.logger_name().unwrap(),
@@ -101,6 +104,7 @@ pub fn init() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+//client loging
 #[macro_export]
 macro_rules! rge_info {
     ($($args:tt)+) => {
@@ -132,34 +136,35 @@ macro_rules! rge_critical {
         spdlog::critical!(logger: rgengine::log::get_client_logger(), $($args)+);
     };
 }
-#[macro_export]
+//engine logging
 macro_rules! rge_engine_info {
     ($($args:tt)+) => {
         spdlog::info!(logger: $crate::log::get_engine_logger(), $($args)+);
     };
 }
-#[macro_export]
+pub(crate) use rge_engine_info;
 macro_rules! rge_engine_error {
     ($($args:tt)+) => {
         spdlog::error!(logger: $crate::log::get_engine_logger(), $($args)+);
     };
 }
-#[macro_export]
+pub(crate) use rge_engine_error;
 macro_rules! rge_engine_warn {
     ($($args:tt)+) => {
         spdlog::warn!(logger: $crate::log::get_engine_logger(), $($args)+);
     };
 }
 
-#[macro_export]
+pub(crate) use rge_engine_warn;
 macro_rules! rge_engine_trace {
     ($($args:tt)+) => {
         spdlog::trace!(logger: $crate::log::get_engine_logger(), $($args)+);
     };
 }
-#[macro_export]
+pub(crate) use rge_engine_trace;
 macro_rules! rge_engine_critical {
     ($($args:tt)+) => {
         spdlog::critical!(logger: $crate::log::get_engine_logger(), $($args)+);
     };
 }
+pub(crate) use rge_engine_critical;
