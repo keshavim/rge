@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 spdlog-rs = {workspace = true}
 bitmask-enum = {workspace = true}
+glfw = {workspace = true}
