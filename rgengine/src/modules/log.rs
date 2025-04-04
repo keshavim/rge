@@ -13,7 +13,6 @@ use std::time::Duration;
 #[derive(Clone)]
 struct ColoredFormatter;
 
-#[allow(clippy::write_with_newline)]
 impl Formatter for ColoredFormatter {
     fn format(
         &self,
@@ -104,67 +103,89 @@ pub fn init() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+// Internal logging functions
+pub fn log_info_internal(logger: &'static Logger, message: &str) {
+    spdlog::info!(logger: logger, "{}", message);
+}
+
+pub fn log_error_internal(logger: &'static Logger, message: &str) {
+    spdlog::error!(logger: logger,"{}", message);
+}
+
+pub fn log_debug_internal(logger: &'static Logger, message: &str) {
+    spdlog::debug!(logger: logger,"{}", message);
+}
+
+pub fn log_trace_internal(logger: &'static Logger, message: &str) {
+    spdlog::trace!(logger: logger,"{}", message);
+}
+
+pub fn log_warn_internal(logger: &'static Logger, message: &str) {
+    spdlog::warn!(logger: logger,"{}", message);
+}
+
 //client loging
 #[macro_export]
 macro_rules! rge_info {
     ($($args:tt)+) => {
-        spdlog::info!(logger: rgengine::log::get_client_logger(), $($args)+);
+
+        $crate::log::log_info_internal($crate::log::get_client_logger(), &format!($($args)+))
     };
 }
 #[macro_export]
 macro_rules! rge_error {
     ($($args:tt)+) => {
-        spdlog::error!(logger: rgengine::log::get_client_logger(), $($args)+);
+        $crate::log::log_error_internal($crate::log::get_client_logger(), &format!($($args)+))
     };
 }
 #[macro_export]
 macro_rules! rge_warn {
     ($($args:tt)+) => {
-        spdlog::warn!(logger: rgengine::log::get_client_logger(), $($args)+);
+        $crate::log::log_warn_internal($crate::log::get_client_logger(), &format!($($args)+))
     };
 }
 
 #[macro_export]
 macro_rules! rge_trace {
     ($($args:tt)+) => {
-        spdlog::trace!(logger: rgengine::log::get_client_logger(), $($args)+);
+        $crate::log::log_trace_internal($crate::log::get_client_logger(), &format!($($args)+))
     };
 }
 #[macro_export]
 macro_rules! rge_critical {
     ($($args:tt)+) => {
-        spdlog::critical!(logger: rgengine::log::get_client_logger(), $($args)+);
+        $crate::log::log_critical_internal($crate::log::get_client_logger(), &format!($($args)+))
     };
 }
 //engine logging
 macro_rules! rge_engine_info {
     ($($args:tt)+) => {
-        spdlog::info!(logger: $crate::log::get_engine_logger(), $($args)+);
+        spdlog::info!(logger: $crate::log::get_engine_logger(), $($args)+)
     };
 }
 pub(crate) use rge_engine_info;
 macro_rules! rge_engine_error {
     ($($args:tt)+) => {
-        spdlog::error!(logger: $crate::log::get_engine_logger(), $($args)+);
+        spdlog::error!(logger: $crate::log::get_engine_logger(), $($args)+)
     };
 }
 pub(crate) use rge_engine_error;
 macro_rules! rge_engine_warn {
     ($($args:tt)+) => {
-        spdlog::warn!(logger: $crate::log::get_engine_logger(), $($args)+);
+        spdlog::warn!(logger: $crate::log::get_engine_logger(), $($args)+)
     };
 }
 
 pub(crate) use rge_engine_warn;
 macro_rules! rge_engine_trace {
     ($($args:tt)+) => {
-        spdlog::trace!(logger: $crate::log::get_engine_logger(), $($args)+);
+        spdlog::trace!(logger: $crate::log::get_engine_logger(), $($args)+)
     };
 }
 pub(crate) use rge_engine_trace;
 macro_rules! rge_engine_critical {
     ($($args:tt)+) => {
-        spdlog::critical!(logger: $crate::log::get_engine_logger(), $($args)+);
+        spdlog::critical!(logger: $crate::log::get_engine_logger(), $($args)+)
     };
 }
 pub(crate) use rge_engine_critical;

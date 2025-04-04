@@ -7,3 +7,4 @@ edition = "2024"
 spdlog-rs = {workspace = true}
 bitmask-enum = {workspace = true}
 glfw = {workspace = true}
+paste = {workspace = true}
