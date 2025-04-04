@@ -83,52 +83,53 @@ use paste::paste;
 macro_rules! create_event {
     ($event_type:ident { $( $field_name:ident : $field_type:ty ),* }, [$($event_catagory:ident),+]) => {
         paste! {
-        #[derive(Debug)]
-        pub struct [<$event_type Event>]{
-            pub handled: bool,
-            $(pub $field_name: $field_type,)*
-        }
+            #[derive(Debug)]
+            pub struct [<$event_type Event>]{
+                pub handled: bool,
+                $(pub $field_name: $field_type,)*
+            }
 
 
-        impl [<$event_type Event>]
-        {
-            pub fn new($( $field_name: $field_type ),*) -> Self {
-                Self {
-                    handled : false,
-                    $( $field_name, )*
+            impl [<$event_type Event>]
+            {
+                pub fn new($( $field_name: $field_type ),*) -> Self {
+                    Self {
+                        handled : false,
+                        $( $field_name, )*
+                    }
+                }
+            }
+
+            impl Event for [<$event_type Event>]
+            {
+                fn get_name(&self) -> &'static str{
+                    stringify!([<$event_type Event>])
+                }
+                fn get_type(&self) -> EventType {
+                    EventType::$event_type
+                }
+                fn get_catagory(&self) -> u8 {
+                    0 $( | EventCatagory::$event_catagory.bits())+
+                }
+                fn to_string(&self) -> String{
+                    let fields = vec![
+                            $(format!("{}: {:?}", stringify!($field_name), self.$field_name)),*
+                        ];
+                    format!("{} {{ {} }}", stringify!([<$event_type Event>]), fields.join(", "))
+                }
+                fn set_handled(&mut self, handled:bool){
+                    self.handled = handled;
+                }
+                fn is_handled(&self) -> bool{
+                    self.handled
                 }
             }
         }
-
-        impl Event for [<$event_type Event>]
-        {
-            fn get_name(&self) -> &'static str{
-                stringify!([<$event_type Event>])
-            }
-            fn get_type(&self) -> EventType {
-                EventType::$event_type
-            }
-            fn get_catagory(&self) -> u8 {
-                0 $( | EventCatagory::$event_catagory.bits())+
-            }
-            fn to_string(&self) -> String{
-                let fields = vec![
-                        $(format!("{}: {:?}", stringify!($field_name), self.$field_name)),*
-                    ];
-                format!("{} {{ {} }}", stringify!([<$event_type Event>]), fields.join(", "))
-            }
-            fn set_handled(&mut self, handled:bool){
-                self.handled = handled;
-            }
-            fn is_handled(&self) -> bool{
-                self.handled
-            }
-        }}
     };
 //this makes things simpler
     ($event_type:ident, [$($event_catagory:ident),+]) => {
         paste!{
-        #[derive(Debug)]
+            #[derive(Debug)]
             pub struct [<$event_type Event>]
             {
                 pub handled: bool,
@@ -153,7 +154,7 @@ macro_rules! create_event {
              impl Event for [<$event_type Event>]
             {
                 fn get_name(&self) -> &'static str{
-                    stringify!( [$event_type Event>] )
+                    stringify!( [<$event_type Event>] )
                 }
                 fn get_type(&self) -> EventType {
                     EventType::$event_type
@@ -162,7 +163,7 @@ macro_rules! create_event {
                     0 $( | EventCatagory::$event_catagory.bits())+
                 }
                 fn to_string(&self) -> String{
-                   stringify!([$event_type Event>]).to_string()
+                   stringify!([<$event_type Event>]).to_string()
                 }
                 fn set_handled(&mut self, handled:bool){
                     self.handled = handled;
@@ -175,46 +176,49 @@ macro_rules! create_event {
     };
 }
 
+use glfw::{Key, MouseButton};
+
 create_event!(
     KeyPressed {
-        key_code: u8,
+        key_code: Key,
         repeat: bool
     },
     [Keyboard, Input]
 );
 
-create_event!(KeyReleased { key_code: u8 }, [Keyboard, Input]);
+create_event!(KeyReleased { key_code: Key }, [Keyboard, Input]);
 
 create_event!(
     MouseButtonPressed {
-        mouse_code: u8,
-        repeat: bool
+        mouse_code: MouseButton
     },
     [MouseButton, Mouse, Input]
 );
 create_event!(
-    MouseButtonReleased { mouse_code: u8 },
+    MouseButtonReleased {
+        mouse_code: MouseButton
+    },
     [MouseButton, Mouse, Input]
 );
 create_event!(
     MouseScrolled {
-        x_offset: f32,
-        y_offset: f32
+        x_offset: f64,
+        y_offset: f64
     },
     [Mouse, Input]
 );
 create_event!(
     MouseMoved {
-        mouse_x: f32,
-        mouse_y: f32
+        mouse_x: f64,
+        mouse_y: f64
     },
     [Mouse, Input]
 );
 
 create_event!(
     WindowResize {
-        width: f32,
-        height: f32
+        width: u32,
+        height: u32
     },
     [Application]
 );
