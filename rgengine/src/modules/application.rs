@@ -3,18 +3,17 @@
 use std::{
     fmt,
     ops::Deref,
-    sync::{Arc, Mutex, OnceLock},
+    rc::Rc,
+    sync::{Arc, Mutex},
 };
-
-use crate::rge_trace;
 
 use super::{
-    events::{Event, EventDispatcher, EventType, WindowCloseEvent},
+    events::{EventDispatcher, EventType, WindowCloseEvent},
     log::{rge_engine_info, rge_engine_trace},
-    window::{Window, WindowProps, X11Window},
+    window::Window,
 };
 pub struct Application {
-    window: Arc<Mutex<X11Window>>,
+    window: Rc<Mutex<Window>>,
     dispatcher: Arc<EventDispatcher>,
     running: Arc<Mutex<bool>>,
 }
@@ -22,12 +21,12 @@ pub struct Application {
 impl Application {
     //need to beable se send the Application into the closure and mutate it with events
     pub fn new() -> Self {
-        let window = Arc::new(Mutex::new(X11Window::new(WindowProps::default())));
+        let window = Rc::new(Mutex::new(Window::new("title", 800, 600).build()));
         let dispatcher = Arc::new(EventDispatcher::new());
 
         // Clone Arcs for callback
         let dispatcher_clone = Arc::clone(&dispatcher);
-        let window_clone = Arc::clone(&window);
+        let window_clone = Rc::clone(&window);
 
         window_clone
             .lock()

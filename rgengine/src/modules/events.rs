@@ -1,8 +1,8 @@
-use std::{
-    any::{Any, TypeId},
-    collections::HashMap,
-    sync::Mutex,
-};
+use std::{any::Any, collections::HashMap, sync::Mutex};
+
+use glfw::{Key, MouseButton};
+
+use crate::log::rge_engine_warn;
 
 use bitmask_enum::bitmask;
 
@@ -48,17 +48,6 @@ pub trait Event: Send + Any + Sync {
     fn as_any(&self) -> &dyn Any;
 }
 
-pub fn get_type_name<T: Event>() -> &'static str {
-    let fullname = std::any::type_name::<T>();
-
-    match fullname.rsplit("::").next() {
-        Some(name) => name,
-        None => fullname,
-    }
-}
-
-//need to test this out, not sure if it works
-
 // Dispatcher
 pub struct EventDispatcher {
     handlers: Mutex<HashMap<EventType, Box<dyn EventHandler + Send + Sync>>>,
@@ -77,7 +66,11 @@ impl EventDispatcher {
         handler: impl FnMut(&E) + Send + Sync + 'static,
     ) {
         let wrapper = Box::new(EventHandlerWrapper::new(handler));
-        self.handlers.lock().unwrap().insert(event_type, wrapper);
+        let mut guard = self.handlers.lock().unwrap_or_else(|p| {
+            rge_engine_warn!("Event handler poisined");
+            p.into_inner()
+        });
+        guard.insert(event_type, wrapper);
     }
 
     pub fn dispatch(&self, event: &dyn Event) {
@@ -227,11 +220,6 @@ macro_rules! create_event {
         }
     };
 }
-
-use glfw::{Key, MouseButton};
-
-use super::{application::Application, log::rge_engine_info};
-
 create_event!(
     KeyPressed {
         key_code: Key,
