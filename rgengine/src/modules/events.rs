@@ -1,7 +1,12 @@
+use std::{
+    any::{Any, TypeId},
+    collections::HashMap,
+    sync::Mutex,
+};
+
 use bitmask_enum::bitmask;
 
-#[derive(Debug, PartialEq, Eq)]
-#[repr(u8)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum EventType {
     WindowClose,
     WindowResize,
@@ -30,7 +35,7 @@ pub enum EventCatagory {
 }
 
 ///basic trait that has all the function needed for events
-pub trait Event {
+pub trait Event: Send + Any + Sync {
     fn get_name(&self) -> &'static str;
     fn get_type(&self) -> EventType;
     fn get_catagory(&self) -> u8;
@@ -40,6 +45,7 @@ pub trait Event {
     }
     fn set_handled(&mut self, handled: bool);
     fn is_handled(&self) -> bool;
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub fn get_type_name<T: Event>() -> &'static str {
@@ -52,27 +58,67 @@ pub fn get_type_name<T: Event>() -> &'static str {
 }
 
 //need to test this out, not sure if it works
-#[derive(Debug)]
-pub struct EventDispatcher<'a, E: Event> {
-    event: &'a mut E,
+
+// Dispatcher
+pub struct EventDispatcher {
+    handlers: Mutex<HashMap<EventType, Box<dyn EventHandler + Send + Sync>>>,
 }
-impl<'a, E: Event> EventDispatcher<'a, E> {
-    pub fn new(event: &'a mut E) -> Self {
-        Self { event }
-    }
-    // Dispatch method
-    pub fn dispatch<T, F>(&mut self, func: F) -> bool
-    where
-        T: Event,
-        F: FnOnce(&mut T) -> bool,
-    {
-        if self.event.get_name() == get_type_name::<T>() {
-            let event = unsafe { &mut *(self.event as *mut E as *mut T) }; // Downcasting
-            let handled = func(event);
-            self.event.set_handled(handled);
-            return true;
+
+impl EventDispatcher {
+    pub fn new() -> Self {
+        Self {
+            handlers: Mutex::new(HashMap::new()),
         }
-        false
+    }
+
+    pub fn register<E: Event + 'static>(
+        &self,
+        event_type: EventType,
+        handler: impl FnMut(&E) + Send + Sync + 'static,
+    ) {
+        let wrapper = Box::new(EventHandlerWrapper::new(handler));
+        self.handlers.lock().unwrap().insert(event_type, wrapper);
+    }
+
+    pub fn dispatch(&self, event: &dyn Event) {
+        if let Some(handler) = self.handlers.lock().unwrap().get_mut(&event.get_type()) {
+            handler.handle(event);
+        }
+    }
+}
+
+// Handler infrastructure
+trait EventHandler {
+    fn handle(&mut self, event: &dyn Event);
+}
+
+struct EventHandlerWrapper<F, E> {
+    handler: F,
+    _marker: std::marker::PhantomData<E>,
+}
+
+impl<F, E> EventHandlerWrapper<F, E>
+where
+    F: FnMut(&E),
+    E: Event + 'static,
+{
+    fn new(handler: F) -> Self {
+        Self {
+            handler,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<F, E> EventHandler for EventHandlerWrapper<F, E>
+where
+    F: FnMut(&E),
+    E: Event + 'static,
+{
+    fn handle(&mut self, event: &dyn Event) {
+        if let Some(e) = event.as_any().downcast_ref::<E>() {
+            (self.handler)(e);
+        }
     }
 }
 
@@ -83,52 +129,56 @@ use paste::paste;
 macro_rules! create_event {
     ($event_type:ident { $( $field_name:ident : $field_type:ty ),* }, [$($event_catagory:ident),+]) => {
         paste! {
-        #[derive(Debug)]
-        pub struct [<$event_type Event>]{
-            pub handled: bool,
-            $(pub $field_name: $field_type,)*
-        }
+            #[derive(Debug)]
+            pub struct [<$event_type Event>]{
+                pub handled: bool,
+                $(pub $field_name: $field_type,)*
+            }
 
 
-        impl [<$event_type Event>]
-        {
-            pub fn new($( $field_name: $field_type ),*) -> Self {
-                Self {
-                    handled : false,
-                    $( $field_name, )*
+            impl [<$event_type Event>]
+            {
+                pub fn new($( $field_name: $field_type ),*) -> Self {
+                    Self {
+                        handled : false,
+                        $( $field_name, )*
+                    }
+                }
+            }
+
+            impl Event for [<$event_type Event>]
+            {
+                fn get_name(&self) -> &'static str{
+                    stringify!([<$event_type Event>])
+                }
+                fn get_type(&self) -> EventType {
+                    EventType::$event_type
+                }
+                fn get_catagory(&self) -> u8 {
+                    0 $( | EventCatagory::$event_catagory.bits())+
+                }
+                fn to_string(&self) -> String{
+                    let fields = vec![
+                            $(format!("{}: {:?}", stringify!($field_name), self.$field_name)),*
+                        ];
+                    format!("{} {{ {} }}", stringify!([<$event_type Event>]), fields.join(", "))
+                }
+                fn set_handled(&mut self, handled:bool){
+                    self.handled = handled;
+                }
+                fn is_handled(&self) -> bool{
+                    self.handled
+                }
+                fn as_any(&self) -> &dyn Any {
+                    self
                 }
             }
         }
-
-        impl Event for [<$event_type Event>]
-        {
-            fn get_name(&self) -> &'static str{
-                stringify!([<$event_type Event>])
-            }
-            fn get_type(&self) -> EventType {
-                EventType::$event_type
-            }
-            fn get_catagory(&self) -> u8 {
-                0 $( | EventCatagory::$event_catagory.bits())+
-            }
-            fn to_string(&self) -> String{
-                let fields = vec![
-                        $(format!("{}: {:?}", stringify!($field_name), self.$field_name)),*
-                    ];
-                format!("{} {{ {} }}", stringify!([<$event_type Event>]), fields.join(", "))
-            }
-            fn set_handled(&mut self, handled:bool){
-                self.handled = handled;
-            }
-            fn is_handled(&self) -> bool{
-                self.handled
-            }
-        }}
     };
 //this makes things simpler
     ($event_type:ident, [$($event_catagory:ident),+]) => {
         paste!{
-        #[derive(Debug)]
+            #[derive(Debug)]
             pub struct [<$event_type Event>]
             {
                 pub handled: bool,
@@ -153,7 +203,7 @@ macro_rules! create_event {
              impl Event for [<$event_type Event>]
             {
                 fn get_name(&self) -> &'static str{
-                    stringify!( [$event_type Event>] )
+                    stringify!( [<$event_type Event>] )
                 }
                 fn get_type(&self) -> EventType {
                     EventType::$event_type
@@ -162,7 +212,7 @@ macro_rules! create_event {
                     0 $( | EventCatagory::$event_catagory.bits())+
                 }
                 fn to_string(&self) -> String{
-                   stringify!([$event_type Event>]).to_string()
+                   stringify!([<$event_type Event>]).to_string()
                 }
                 fn set_handled(&mut self, handled:bool){
                     self.handled = handled;
@@ -170,51 +220,59 @@ macro_rules! create_event {
                 fn is_handled(&self) -> bool{
                     self.handled
                 }
+                fn as_any(&self) -> &dyn Any {
+                    self
+                }
             }
         }
     };
 }
 
+use glfw::{Key, MouseButton};
+
+use super::{application::Application, log::rge_engine_info};
+
 create_event!(
     KeyPressed {
-        key_code: u8,
+        key_code: Key,
         repeat: bool
     },
     [Keyboard, Input]
 );
 
-create_event!(KeyReleased { key_code: u8 }, [Keyboard, Input]);
+create_event!(KeyReleased { key_code: Key }, [Keyboard, Input]);
 
 create_event!(
     MouseButtonPressed {
-        mouse_code: u8,
-        repeat: bool
+        mouse_code: MouseButton
     },
     [MouseButton, Mouse, Input]
 );
 create_event!(
-    MouseButtonReleased { mouse_code: u8 },
+    MouseButtonReleased {
+        mouse_code: MouseButton
+    },
     [MouseButton, Mouse, Input]
 );
 create_event!(
     MouseScrolled {
-        x_offset: f32,
-        y_offset: f32
+        x_offset: f64,
+        y_offset: f64
     },
     [Mouse, Input]
 );
 create_event!(
     MouseMoved {
-        mouse_x: f32,
-        mouse_y: f32
+        mouse_x: f64,
+        mouse_y: f64
     },
     [Mouse, Input]
 );
 
 create_event!(
     WindowResize {
-        width: f32,
-        height: f32
+        width: u32,
+        height: u32
     },
     [Application]
 );
