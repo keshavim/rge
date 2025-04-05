@@ -5,8 +5,8 @@ macro_rules! engine_run {
         fn main() {
             let _ = rgengine::log::init();
             rgengine::rge_info!("init done");
-            let mut app = Box::new(Application::new());
-            app.lock().unwrap().run();
+            let mut app = Application::new();
+            app.run();
         }
     };
 }

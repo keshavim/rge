@@ -2,43 +2,59 @@
 
 use std::{
     fmt,
-    sync::{Arc, Mutex},
+    ops::Deref,
+    sync::{Arc, Mutex, OnceLock},
 };
 
-use crate::events::EventType;
+use crate::rge_trace;
 
 use super::{
-    events::Event,
-    log::rge_engine_info,
+    events::{Event, EventDispatcher, EventType, WindowCloseEvent},
+    log::{rge_engine_info, rge_engine_trace},
     window::{Window, WindowProps, X11Window},
 };
 pub struct Application {
-    window: Box<dyn Window>,
-    running: bool,
+    window: Arc<Mutex<X11Window>>,
+    dispatcher: Arc<EventDispatcher>,
+    running: Arc<Mutex<bool>>,
 }
 
 impl Application {
     //need to beable se send the Application into the closure and mutate it with events
-    pub fn new() -> Arc<Mutex<Self>> {
-        let window: Box<dyn Window> = Box::new(X11Window::new(WindowProps::default()));
+    pub fn new() -> Self {
+        let window = Arc::new(Mutex::new(X11Window::new(WindowProps::default())));
+        let dispatcher = Arc::new(EventDispatcher::new());
 
-        let app = Arc::new(Mutex::new(Application {
+        // Clone Arcs for callback
+        let dispatcher_clone = Arc::clone(&dispatcher);
+        let window_clone = Arc::clone(&window);
+
+        window_clone
+            .lock()
+            .unwrap()
+            .set_event_callback(move |event| {
+                rge_engine_trace!("{}", event.to_string());
+                dispatcher_clone.dispatch(event);
+            });
+        let running = Arc::new(Mutex::new(true));
+        Application {
             window,
-            running: true,
-        }));
-
-        // Wrap the method in a closure
-        let callback = Box::new(move |event: &dyn Event| {
-            rge_engine_info!("{}", event.to_string());
-            if event.get_type() == EventType::WindowClose {}
-        });
-        app.lock().unwrap().window.set_event_callback(callback);
-        app
+            dispatcher,
+            running,
+        }
     }
 
     pub fn run(&mut self) {
-        while !self.window.should_close() {
-            self.window.update();
+        //temp stuff
+        let running_clone = Arc::clone(&self.running);
+        self.dispatcher
+            .register(EventType::WindowClose, move |_: &WindowCloseEvent| {
+                rge_engine_info!("should close");
+                *running_clone.lock().unwrap() = false;
+            });
+
+        while *self.running.lock().unwrap().deref() {
+            self.window.lock().unwrap().update();
         }
     }
 }

@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+
 use crate::log::rge_engine_error;
 
 use super::events::{
@@ -6,8 +8,6 @@ use super::events::{
 };
 use glfw::{Action, Context};
 use glfw::{Error, WindowEvent};
-
-extern crate glfw;
 
 #[derive(Debug)]
 pub struct WindowProps {
@@ -36,7 +36,6 @@ impl Default for WindowProps {
         }
     }
 }
-type EventCallback = Box<dyn FnMut(&dyn Event) + 'static>;
 
 ///internal window data
 struct WindowData {
@@ -44,7 +43,7 @@ struct WindowData {
     width: u32,
     height: u32,
     vsync: bool,
-    event_callback: Option<EventCallback>,
+    event_callback: Mutex<Option<Box<dyn FnMut(&dyn Event) + Send>>>,
 }
 
 ///window made specifically for xll
@@ -62,7 +61,7 @@ impl X11Window {
             width: props.width,
             height: props.height,
             vsync: true,
-            event_callback: None,
+            event_callback: Mutex::new(None),
         };
 
         let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();
@@ -107,7 +106,9 @@ pub trait Window {
     fn set_vsync(&mut self, enabled: bool);
     fn is_vsync(&self) -> bool;
     fn should_close(&self) -> bool;
-    fn set_event_callback(&mut self, callback: EventCallback);
+    fn set_event_callback<F>(&self, callback: F)
+    where
+        F: FnMut(&dyn Event) + Send + 'static;
     fn get_native_window(&self) -> &glfw::PWindow;
 }
 impl Window for X11Window {
@@ -119,10 +120,11 @@ impl Window for X11Window {
     //handles all events with the help of a closer method given
     fn handle_events(&mut self) {
         for (_, event) in glfw::flush_messages(&self.events) {
+            let mut callback = self.data.event_callback.lock().unwrap();
             match event {
                 WindowEvent::Close => {
                     let e = WindowCloseEvent::new();
-                    if let Some(c) = self.data.event_callback.as_mut() {
+                    if let Some(c) = callback.as_mut() {
                         c(&e)
                     }
                     self.window.set_should_close(true);
@@ -134,7 +136,7 @@ impl Window for X11Window {
                     self.data.height = h;
 
                     let e = WindowResizeEvent::new(w, h);
-                    if let Some(c) = self.data.event_callback.as_mut() {
+                    if let Some(c) = callback.as_mut() {
                         c(&e)
                     }
                 }
@@ -142,7 +144,7 @@ impl Window for X11Window {
                     Action::Press => {
                         let e = KeyPressedEvent::new(key, false);
 
-                        if let Some(c) = self.data.event_callback.as_mut() {
+                        if let Some(c) = callback.as_mut() {
                             c(&e)
                         }
                     }
@@ -150,14 +152,14 @@ impl Window for X11Window {
                     Action::Release => {
                         let e = KeyReleasedEvent::new(key);
 
-                        if let Some(c) = self.data.event_callback.as_mut() {
+                        if let Some(c) = callback.as_mut() {
                             c(&e)
                         }
                     }
                     Action::Repeat => {
                         let e = KeyPressedEvent::new(key, true);
 
-                        if let Some(c) = self.data.event_callback.as_mut() {
+                        if let Some(c) = callback.as_mut() {
                             c(&e)
                         }
                     }
@@ -166,7 +168,7 @@ impl Window for X11Window {
                     Action::Press => {
                         let e = MouseButtonPressedEvent::new(button);
 
-                        if let Some(c) = self.data.event_callback.as_mut() {
+                        if let Some(c) = callback.as_mut() {
                             c(&e)
                         }
                     }
@@ -174,7 +176,7 @@ impl Window for X11Window {
                     Action::Release => {
                         let e = MouseButtonReleasedEvent::new(button);
 
-                        if let Some(c) = self.data.event_callback.as_mut() {
+                        if let Some(c) = callback.as_mut() {
                             c(&e)
                         }
                     }
@@ -183,14 +185,14 @@ impl Window for X11Window {
                 WindowEvent::Scroll(xoff, yoff) => {
                     let e = MouseScrolledEvent::new(xoff, yoff);
 
-                    if let Some(c) = self.data.event_callback.as_mut() {
+                    if let Some(c) = callback.as_mut() {
                         c(&e)
                     }
                 }
                 WindowEvent::CursorPos(xpos, ypos) => {
                     let e = MouseMovedEvent::new(xpos, ypos);
 
-                    if let Some(c) = self.data.event_callback.as_mut() {
+                    if let Some(c) = callback.as_mut() {
                         c(&e)
                     }
                 }
@@ -216,7 +218,10 @@ impl Window for X11Window {
     fn get_native_window(&self) -> &glfw::PWindow {
         &self.window
     }
-    fn set_event_callback(&mut self, callback: EventCallback) {
-        self.data.event_callback = Some(callback);
+    fn set_event_callback<F>(&self, callback: F)
+    where
+        F: FnMut(&dyn Event) + Send + 'static,
+    {
+        *self.data.event_callback.lock().unwrap() = Some(Box::new(callback));
     }
 }

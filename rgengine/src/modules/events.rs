@@ -1,7 +1,12 @@
+use std::{
+    any::{Any, TypeId},
+    collections::HashMap,
+    sync::Mutex,
+};
+
 use bitmask_enum::bitmask;
 
-#[derive(Debug, PartialEq, Eq)]
-#[repr(u8)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum EventType {
     WindowClose,
     WindowResize,
@@ -30,7 +35,7 @@ pub enum EventCatagory {
 }
 
 ///basic trait that has all the function needed for events
-pub trait Event {
+pub trait Event: Send + Any + Sync {
     fn get_name(&self) -> &'static str;
     fn get_type(&self) -> EventType;
     fn get_catagory(&self) -> u8;
@@ -40,6 +45,7 @@ pub trait Event {
     }
     fn set_handled(&mut self, handled: bool);
     fn is_handled(&self) -> bool;
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub fn get_type_name<T: Event>() -> &'static str {
@@ -52,27 +58,67 @@ pub fn get_type_name<T: Event>() -> &'static str {
 }
 
 //need to test this out, not sure if it works
-#[derive(Debug)]
-pub struct EventDispatcher<'a, E: Event> {
-    event: &'a mut E,
+
+// Dispatcher
+pub struct EventDispatcher {
+    handlers: Mutex<HashMap<EventType, Box<dyn EventHandler + Send + Sync>>>,
 }
-impl<'a, E: Event> EventDispatcher<'a, E> {
-    pub fn new(event: &'a mut E) -> Self {
-        Self { event }
-    }
-    // Dispatch method
-    pub fn dispatch<T, F>(&mut self, func: F) -> bool
-    where
-        T: Event,
-        F: FnOnce(&mut T) -> bool,
-    {
-        if self.event.get_name() == get_type_name::<T>() {
-            let event = unsafe { &mut *(self.event as *mut E as *mut T) }; // Downcasting
-            let handled = func(event);
-            self.event.set_handled(handled);
-            return true;
+
+impl EventDispatcher {
+    pub fn new() -> Self {
+        Self {
+            handlers: Mutex::new(HashMap::new()),
         }
-        false
+    }
+
+    pub fn register<E: Event + 'static>(
+        &self,
+        event_type: EventType,
+        handler: impl FnMut(&E) + Send + Sync + 'static,
+    ) {
+        let wrapper = Box::new(EventHandlerWrapper::new(handler));
+        self.handlers.lock().unwrap().insert(event_type, wrapper);
+    }
+
+    pub fn dispatch(&self, event: &dyn Event) {
+        if let Some(handler) = self.handlers.lock().unwrap().get_mut(&event.get_type()) {
+            handler.handle(event);
+        }
+    }
+}
+
+// Handler infrastructure
+trait EventHandler {
+    fn handle(&mut self, event: &dyn Event);
+}
+
+struct EventHandlerWrapper<F, E> {
+    handler: F,
+    _marker: std::marker::PhantomData<E>,
+}
+
+impl<F, E> EventHandlerWrapper<F, E>
+where
+    F: FnMut(&E),
+    E: Event + 'static,
+{
+    fn new(handler: F) -> Self {
+        Self {
+            handler,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<F, E> EventHandler for EventHandlerWrapper<F, E>
+where
+    F: FnMut(&E),
+    E: Event + 'static,
+{
+    fn handle(&mut self, event: &dyn Event) {
+        if let Some(e) = event.as_any().downcast_ref::<E>() {
+            (self.handler)(e);
+        }
     }
 }
 
@@ -123,6 +169,9 @@ macro_rules! create_event {
                 fn is_handled(&self) -> bool{
                     self.handled
                 }
+                fn as_any(&self) -> &dyn Any {
+                    self
+                }
             }
         }
     };
@@ -171,12 +220,17 @@ macro_rules! create_event {
                 fn is_handled(&self) -> bool{
                     self.handled
                 }
+                fn as_any(&self) -> &dyn Any {
+                    self
+                }
             }
         }
     };
 }
 
 use glfw::{Key, MouseButton};
+
+use super::{application::Application, log::rge_engine_info};
 
 create_event!(
     KeyPressed {
