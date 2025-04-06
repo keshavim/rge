@@ -6,65 +6,23 @@ use super::events::{
     Event, KeyPressedEvent, KeyReleasedEvent, MouseButtonPressedEvent, MouseButtonReleasedEvent,
     MouseMovedEvent, MouseScrolledEvent, WindowCloseEvent, WindowResizeEvent,
 };
-use glfw::{Action, Context};
+use glfw::{Action, Context, Glfw, GlfwReceiver, PWindow};
 use glfw::{Error, WindowEvent};
 
-#[derive(Debug)]
-pub struct WindowProps {
-    title: String,
+pub struct WindowBuilder {
     width: u32,
     height: u32,
-}
-
-///Basic Proporties the client can set
-impl WindowProps {
-    pub fn new(title: &str, width: u32, height: u32) -> Self {
-        Self {
-            title: title.to_string(),
-            width,
-            height,
-        }
-    }
-}
-
-impl Default for WindowProps {
-    fn default() -> Self {
-        Self {
-            title: "RGengine".to_string(),
-            width: 800,
-            height: 600,
-        }
-    }
-}
-
-///internal window data
-struct WindowData {
     title: String,
-    width: u32,
-    height: u32,
-    vsync: bool,
-    event_callback: Mutex<Option<Box<dyn FnMut(&dyn Event) + Send>>>,
+    vsync: Option<bool>,
 }
 
-///window made specifically for xll
-pub struct X11Window {
-    data: WindowData,
-    glfw: glfw::Glfw,
-    window: glfw::PWindow,
-    events: glfw::GlfwReceiver<(f64, WindowEvent)>,
-}
-
-impl X11Window {
-    pub fn new(props: WindowProps) -> Self {
-        let data = WindowData {
-            title: props.title,
-            width: props.width,
-            height: props.height,
-            vsync: true,
-            event_callback: Mutex::new(None),
-        };
-
-        let mut glfw = glfw::init(glfw::fail_on_errors).unwrap();
+impl WindowBuilder {
+    pub fn vsync(&mut self, vsync: bool) -> &mut Self {
+        self.vsync = Some(vsync);
+        self
+    }
+    fn init_glfw(&self) -> (Glfw, PWindow, GlfwReceiver<(f64, WindowEvent)>) {
+        let mut glfw = glfw::init(glfw::fail_on_errors).expect("Failed to init Glfw");
 
         // Set a custom error callback
         glfw.set_error_callback(|error: Error, description: String| {
@@ -73,9 +31,9 @@ impl X11Window {
 
         let (mut window, events) = glfw
             .create_window(
-                data.width,
-                data.height,
-                &data.title,
+                self.width,
+                self.height,
+                &self.title,
                 glfw::WindowMode::Windowed,
             )
             .expect("Failed to create GLFW window.");
@@ -89,30 +47,47 @@ impl X11Window {
         window.set_close_polling(true);
         window.set_scroll_polling(true);
 
-        Self {
-            data,
+        (glfw, window, events)
+    }
+    pub fn build(self) -> Window {
+        let (glfw, window, events) = self.init_glfw();
+
+        Window {
+            title: self.title,
+            width: self.width,
+            height: self.height,
+            vsync: self.vsync.unwrap_or(true),
+            event_callback: Mutex::new(None),
             glfw,
             window,
             events,
         }
     }
 }
-///Contains all basic functionality for all types of windows
-pub trait Window {
-    fn update(&mut self);
-    fn handle_events(&mut self);
-    fn get_name(&self) -> &str;
-    fn get_size(&self) -> (u32, u32);
-    fn set_vsync(&mut self, enabled: bool);
-    fn is_vsync(&self) -> bool;
-    fn should_close(&self) -> bool;
-    fn set_event_callback<F>(&self, callback: F)
-    where
-        F: FnMut(&dyn Event) + Send + 'static;
-    fn get_native_window(&self) -> &glfw::PWindow;
+
+type EventCallback = Mutex<Option<Box<dyn FnMut(&dyn Event) + Send>>>;
+///window made specifically for xll
+pub struct Window {
+    title: String,
+    width: u32,
+    height: u32,
+    vsync: bool,
+    event_callback: EventCallback,
+    glfw: glfw::Glfw,
+    window: glfw::PWindow,
+    events: glfw::GlfwReceiver<(f64, WindowEvent)>,
 }
-impl Window for X11Window {
-    fn update(&mut self) {
+
+impl Window {
+    pub fn new(title: &str, width: u32, height: u32) -> WindowBuilder {
+        WindowBuilder {
+            width,
+            height,
+            title: title.to_string(),
+            vsync: None,
+        }
+    }
+    pub fn update(&mut self) {
         self.glfw.poll_events();
         self.handle_events();
         self.window.swap_buffers();
@@ -120,20 +95,22 @@ impl Window for X11Window {
     //handles all events with the help of a closer method given
     fn handle_events(&mut self) {
         for (_, event) in glfw::flush_messages(&self.events) {
-            let mut callback = self.data.event_callback.lock().unwrap();
+            let mut callback = self.event_callback.lock().unwrap_or_else(|p| {
+                rge_engine_error!("Event CallBack Poisoned, tried to recover");
+                p.into_inner()
+            });
             match event {
                 WindowEvent::Close => {
                     let e = WindowCloseEvent::new();
                     if let Some(c) = callback.as_mut() {
                         c(&e)
                     }
-                    self.window.set_should_close(true);
                 }
                 WindowEvent::Size(w, h) => {
                     let w = w as u32;
                     let h = h as u32;
-                    self.data.width = w;
-                    self.data.height = h;
+                    self.width = w;
+                    self.height = h;
 
                     let e = WindowResizeEvent::new(w, h);
                     if let Some(c) = callback.as_mut() {
@@ -200,28 +177,28 @@ impl Window for X11Window {
             }
         }
     }
-    fn get_name(&self) -> &str {
-        &self.data.title
+    pub fn get_name(&self) -> &str {
+        &self.title
     }
-    fn get_size(&self) -> (u32, u32) {
-        (self.data.width, self.data.height)
+    pub fn get_size(&self) -> (u32, u32) {
+        (self.width, self.height)
     }
-    fn set_vsync(&mut self, enabled: bool) {
-        self.data.vsync = enabled;
+    pub fn set_vsync(&mut self, enabled: bool) {
+        self.vsync = enabled;
     }
-    fn is_vsync(&self) -> bool {
-        self.data.vsync
+    pub fn is_vsync(&self) -> bool {
+        self.vsync
     }
-    fn should_close(&self) -> bool {
-        self.window.should_close()
-    }
-    fn get_native_window(&self) -> &glfw::PWindow {
+    pub fn get_native_window(&self) -> &glfw::PWindow {
         &self.window
     }
-    fn set_event_callback<F>(&self, callback: F)
+    pub fn set_event_callback<F>(&self, callback: F)
     where
         F: FnMut(&dyn Event) + Send + 'static,
     {
-        *self.data.event_callback.lock().unwrap() = Some(Box::new(callback));
+        *self
+            .event_callback
+            .lock()
+            .expect("Event callback poisoned at set") = Some(Box::new(callback));
     }
 }

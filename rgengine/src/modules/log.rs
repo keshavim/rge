@@ -51,7 +51,7 @@ impl Formatter for ColoredFormatter {
             logger = record.logger_name().unwrap(),
             payload = record.payload()
         )
-        .unwrap();
+        .expect("log failed");
 
         Ok(())
     }
