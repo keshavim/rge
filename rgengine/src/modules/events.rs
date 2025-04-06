@@ -1,12 +1,10 @@
-use std::{any::Any, collections::HashMap, sync::Mutex};
+use std::{any::Any, cell::RefCell, collections::HashMap};
 
 use glfw::{Key, MouseButton};
 
-use crate::log::rge_engine_warn;
-
 use bitmask_enum::bitmask;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub enum EventType {
     WindowClose,
     WindowResize,
@@ -35,7 +33,7 @@ pub enum EventCatagory {
 }
 
 ///basic trait that has all the function needed for events
-pub trait Event: Send + Any + Sync {
+pub trait Event: Any {
     fn get_name(&self) -> &'static str;
     fn get_type(&self) -> EventType;
     fn get_catagory(&self) -> u8;
@@ -50,31 +48,27 @@ pub trait Event: Send + Any + Sync {
 
 // Dispatcher
 pub struct EventDispatcher {
-    handlers: Mutex<HashMap<EventType, Box<dyn EventHandler + Send + Sync>>>,
+    handlers: RefCell<HashMap<EventType, Box<dyn EventHandler>>>,
 }
 
 impl EventDispatcher {
     pub fn new() -> Self {
         Self {
-            handlers: Mutex::new(HashMap::new()),
+            handlers: RefCell::new(HashMap::new()),
         }
     }
 
     pub fn register<E: Event + 'static>(
         &self,
         event_type: EventType,
-        handler: impl FnMut(&E) + Send + Sync + 'static,
+        handler: impl FnMut(&E) + 'static,
     ) {
         let wrapper = Box::new(EventHandlerWrapper::new(handler));
-        let mut guard = self.handlers.lock().unwrap_or_else(|p| {
-            rge_engine_warn!("Event handler poisined");
-            p.into_inner()
-        });
-        guard.insert(event_type, wrapper);
+        self.handlers.borrow_mut().insert(event_type, wrapper);
     }
 
     pub fn dispatch(&self, event: &dyn Event) {
-        if let Some(handler) = self.handlers.lock().unwrap().get_mut(&event.get_type()) {
+        if let Some(handler) = self.handlers.borrow_mut().get_mut(&event.get_type()) {
             handler.handle(event);
         }
     }

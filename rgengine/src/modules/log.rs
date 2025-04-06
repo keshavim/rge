@@ -124,6 +124,9 @@ pub fn log_warn_internal(logger: &'static Logger, message: &str) {
     spdlog::warn!(logger: logger,"{}", message);
 }
 
+pub fn log_critical_internal(logger: &'static Logger, message: &str) {
+    spdlog::critical!(logger: logger,"{}", message);
+}
 //client loging
 #[macro_export]
 macro_rules! rge_info {

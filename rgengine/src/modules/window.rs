@@ -1,4 +1,5 @@
-use std::sync::Mutex;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use crate::log::rge_engine_error;
 
@@ -7,7 +8,7 @@ use super::events::{
     MouseMovedEvent, MouseScrolledEvent, WindowCloseEvent, WindowResizeEvent,
 };
 use glfw::{Action, Context, Glfw, GlfwReceiver, PWindow};
-use glfw::{Error, WindowEvent};
+use glfw::{Error, WindowEvent, WindowHint};
 
 pub struct WindowBuilder {
     width: u32,
@@ -24,7 +25,13 @@ impl WindowBuilder {
     fn init_glfw(&self) -> (Glfw, PWindow, GlfwReceiver<(f64, WindowEvent)>) {
         let mut glfw = glfw::init(glfw::fail_on_errors).expect("Failed to init Glfw");
 
-        // Set a custom error callback
+        // Set all window hints
+        glfw.window_hint(WindowHint::ContextVersion(4, 5));
+        glfw.window_hint(WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
+        glfw.window_hint(WindowHint::OpenGlForwardCompat(true));
+        glfw.window_hint(WindowHint::DoubleBuffer(true));
+        glfw.window_hint(WindowHint::Samples(Some(4))); // MSAA
+        glfw.window_hint(WindowHint::OpenGlDebugContext(cfg!(debug_assertions))); // Set a custom error callback
         glfw.set_error_callback(|error: Error, description: String| {
             rge_engine_error!("GLFW Error {:?}: {}", error, description);
         });
@@ -46,6 +53,9 @@ impl WindowBuilder {
         window.set_cursor_pos_polling(true);
         window.set_close_polling(true);
         window.set_scroll_polling(true);
+        window.set_framebuffer_size_polling(true);
+
+        gl::load_with(|s| window.get_proc_address(s) as *const _);
 
         (glfw, window, events)
     }
@@ -57,15 +67,15 @@ impl WindowBuilder {
             width: self.width,
             height: self.height,
             vsync: self.vsync.unwrap_or(true),
-            event_callback: Mutex::new(None),
+            event_callback: RefCell::new(None),
             glfw,
-            window,
+            window: Rc::new(RefCell::new(window)),
             events,
         }
     }
 }
 
-type EventCallback = Mutex<Option<Box<dyn FnMut(&dyn Event) + Send>>>;
+type EventCallback = RefCell<Option<Box<dyn FnMut(&dyn Event)>>>;
 ///window made specifically for xll
 pub struct Window {
     title: String,
@@ -74,7 +84,7 @@ pub struct Window {
     vsync: bool,
     event_callback: EventCallback,
     glfw: glfw::Glfw,
-    window: glfw::PWindow,
+    window: Rc<RefCell<glfw::PWindow>>,
     events: glfw::GlfwReceiver<(f64, WindowEvent)>,
 }
 
@@ -88,18 +98,22 @@ impl Window {
         }
     }
     pub fn update(&mut self) {
+        unsafe {
+            gl::ClearColor(0.2, 0.1, 0.3, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+        }
         self.glfw.poll_events();
         self.handle_events();
-        self.window.swap_buffers();
+        self.window.borrow_mut().swap_buffers();
     }
     //handles all events with the help of a closer method given
     fn handle_events(&mut self) {
         for (_, event) in glfw::flush_messages(&self.events) {
-            let mut callback = self.event_callback.lock().unwrap_or_else(|p| {
-                rge_engine_error!("Event CallBack Poisoned, tried to recover");
-                p.into_inner()
-            });
+            let mut callback = self.event_callback.borrow_mut();
             match event {
+                glfw::WindowEvent::FramebufferSize(width, height) => unsafe {
+                    gl::Viewport(0, 0, width, height)
+                },
                 WindowEvent::Close => {
                     let e = WindowCloseEvent::new();
                     if let Some(c) = callback.as_mut() {
@@ -189,16 +203,13 @@ impl Window {
     pub fn is_vsync(&self) -> bool {
         self.vsync
     }
-    pub fn get_native_window(&self) -> &glfw::PWindow {
-        &self.window
+    pub fn get_native_window(&self) -> Rc<RefCell<glfw::PWindow>> {
+        self.window.clone()
     }
     pub fn set_event_callback<F>(&self, callback: F)
     where
-        F: FnMut(&dyn Event) + Send + 'static,
+        F: FnMut(&dyn Event) + 'static,
     {
-        *self
-            .event_callback
-            .lock()
-            .expect("Event callback poisoned at set") = Some(Box::new(callback));
+        *self.event_callback.borrow_mut() = Some(Box::new(callback));
     }
 }

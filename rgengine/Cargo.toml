@@ -8,4 +8,6 @@ spdlog-rs = {workspace = true}
 bitmask-enum = {workspace = true}
 glfw = {workspace = true}
 paste = {workspace = true}
-lazy_static = {workspace = true}
+gl = {workspace = true}
+imgui = {workspace = true}
+imgui-opengl-renderer = {workspace = true}
