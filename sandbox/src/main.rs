@@ -1,45 +1,27 @@
-use std::cell::{Ref, RefCell};
-use std::default;
-use std::rc::Rc;
+use rgengine::{
+    engine::GameEngine,
+    layers::{Layer, LayerStack},
+    rge_info, rge_warn,
+};
 
-use rgengine::application::Application;
-use rgengine::imgui::ImGuiLayer;
-use rgengine::layer::{Layer, SharedLayer};
-use rgengine::{engine_run, rge_critical, rge_error, rge_info, rge_trace};
-
-#[derive(Default)]
-struct Example_layer {
-    id: usize,
-}
-impl Example_layer {
-    fn new() -> Self {
-        Self { id: 1 }
-    }
+#[derive(Debug, Default)]
+struct ExampleLayer {
+    pub id: usize,
 }
 
-impl Layer for Example_layer {
-    fn update(&mut self) {}
-    fn event(&mut self, e: &dyn rgengine::events::Event) {
-        rge_error!("{}", e.to_string());
+impl Layer for ExampleLayer {
+    fn get_id(&self) -> usize {
+        self.id
     }
-    fn id(&self) -> u32 {
-        todo!()
-    }
-    fn attach(&mut self) {
-        rge_trace!("attach");
-    }
-    fn detach(&mut self) {
-        todo!()
+    fn on_update(&mut self, dt: f32) {
+        rge_info!("{:?}", self.id);
     }
 }
 
 fn main() {
     let _ = rgengine::log::init();
-    rgengine::rge_info!("init done");
-    let mut app = Application::new();
-    let shared_layer: SharedLayer = Box::new(Example_layer::new());
-    app.push_layer(shared_layer);
-    //let shared_layer: SharedLayer = Box::new(ImGuiLayer::new(app.window.get_native_window()));
-    //app.push_layer(shared_layer);
-    app.run();
+
+    let mut engine = GameEngine::new();
+
+    engine.run();
 }

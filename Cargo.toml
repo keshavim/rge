@@ -8,13 +8,3 @@ default-members = ["sandbox"]
 resolver = "2"
 
 [workspace.dependencies]
-spdlog-rs = { version = "0.4.1", features = ["source-location"] }
-bitmask-enum = "2.2.5" 
-glfw = "*"
-paste = "1.0.15"
-gl = "*"
-imgui = "*"
-imgui-opengl-renderer = "*"
-#winit = "*"
-#glutin = "*"
-#glow = "*"

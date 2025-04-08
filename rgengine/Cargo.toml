@@ -4,10 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-spdlog-rs = {workspace = true}
-bitmask-enum = {workspace = true}
-glfw = {workspace = true}
-paste = {workspace = true}
-gl = {workspace = true}
-imgui = {workspace = true}
-imgui-opengl-renderer = {workspace = true}
+spdlog-rs = { version = "0.4.1", features = ["source-location"] }
+bitflag = "0.10.1" 
+paste = "1.0.15"
+
+
+glfw = "0.31.0"
+imgui-opengl-renderer = "0.5.0"
+gl = "0.14.0"
+imgui = "0.1.0"
+imgui-glfw-rs = "0.4"
