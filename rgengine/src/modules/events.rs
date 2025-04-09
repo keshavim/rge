@@ -1,146 +1,146 @@
-use bitflag::bitflag;
+use std::any::Any;
+
 use glfw::{Action, Key, Modifiers, MouseButton, Scancode, WindowEvent};
 
-use super::engine::GameEngine;
-
+use paste::paste;
 //might need to change how all this works
 ////need a much better way of comparing event types
-#[derive(Clone, PartialEq, PartialOrd, Debug)]
+
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug)]
 pub enum EventType {
-    Unknown,
-    WindowMoved { x: i32, y: i32 },
-    WindowResize { width: i32, height: i32 },
+    WindowMoved,
+    WindowResize,
     WindowClose,
     WindowFocus,
     WindowLostFocus,
-    KeyPressed { key: Key, repeat: bool },
-    KeyReleased { key: Key },
-    MouseButtonPressed { button: MouseButton },
-    MouseButtonReleased { button: MouseButton },
-    MouseMoved { x: f64, y: f64 },
-    MouseScrolled { x_offset: f64, y_offset: f64 },
+    KeyPressed,
+    KeyReleased,
+    MouseButtonPressed,
+    MouseButtonReleased,
+    MouseMoved,
+    MouseScrolled,
+    Unknown,
 }
 
-#[bitflag(u8)]
-#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
-pub enum EventCategory {
-    Unknown = 0,
-    Engine = 1,
-    Input = 1 << 1,
-    Keyboard = 1 << 2,
-    Mouse = 1 << 3,
-    MouseButton = 1 << 4,
-}
-
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub struct Event {
-    pub event_type: EventType,
-    pub category: EventCategory,
-    pub handled: bool,
-}
-
-impl Event {
-    fn dummy() -> Self {
-        Self {
-            event_type: EventType::Unknown,
-            category: EventCategory::Unknown,
-            handled: false,
-        }
+bitflags::bitflags! {
+#[derive(Clone, Copy, Debug)]
+    pub struct EventCategory: u8{
+    const Unknown = 0;
+    const Engine = 1;
+    const Input = 1 << 1;
+    const Keyboard = 1 << 2;
+    const Mouse = 1 << 3;
+    const MouseButton = 1 << 4;
     }
 }
+#[macro_export]
+macro_rules! rgevent {
+    ($name:ident $(, $field_name:ident)*) => {
 
-//converts a glfw event to my events
-impl From<&WindowEvent> for Event {
-    fn from(glfw_event: &WindowEvent) -> Self {
-        let (event_type, category) = match *glfw_event {
-            WindowEvent::Pos(x, y) => (EventType::WindowMoved { x, y }, EventCategory::Engine),
-
-            WindowEvent::Size(width, height) => (
-                EventType::WindowResize { width, height },
-                EventCategory::Engine,
-            ),
-
-            WindowEvent::Close => (EventType::WindowClose, EventCategory::Engine),
-
-            WindowEvent::Focus(focused) => (
-                if focused {
-                    EventType::WindowFocus
-                } else {
-                    EventType::WindowLostFocus
-                },
-                EventCategory::Engine,
-            ),
-
-            WindowEvent::Key(key, _, action, _) => match action {
-                glfw::Action::Press => (
-                    EventType::KeyPressed { key, repeat: false },
-                    EventCategory::Keyboard | EventCategory::Input,
-                ),
-                glfw::Action::Release => (
-                    EventType::KeyReleased { key },
-                    EventCategory::Keyboard | EventCategory::Input,
-                ),
-                glfw::Action::Repeat => (
-                    EventType::KeyPressed { key, repeat: true },
-                    EventCategory::Keyboard | EventCategory::Input,
-                ),
-            },
-
-            WindowEvent::MouseButton(button, action, _) => match action {
-                glfw::Action::Press | glfw::Action::Repeat => (
-                    EventType::MouseButtonPressed { button },
-                    EventCategory::MouseButton | EventCategory::Mouse | EventCategory::Input,
-                ),
-                glfw::Action::Release => (
-                    EventType::MouseButtonReleased { button },
-                    EventCategory::MouseButton | EventCategory::Mouse | EventCategory::Input,
-                ),
-            },
-
-            WindowEvent::CursorPos(x, y) => (
-                EventType::MouseMoved { x, y },
-                EventCategory::Mouse | EventCategory::Input,
-            ),
-
-            WindowEvent::Scroll(x_offset, y_offset) => (
-                EventType::MouseScrolled { x_offset, y_offset },
-                EventCategory::Mouse | EventCategory::Input,
-            ),
-
-            _ => return Event::dummy(),
-        };
-        Event {
-            event_type,
-            handled: false,
-            category,
-        }
-    }
+            RGEvent::$name($name::new($($field_name),*))
+    };
 }
 
-// this whole thing needs masive reworks
-pub struct EventSystem {
-    event_queue: Vec<glfw::WindowEvent>,
+#[derive(Debug)]
+pub enum RGEvent {
+    WindowClose(WindowClose),
+    WindowFocus(WindowFocus),
+    WindowLostFocus(WindowLostFocus),
+    WindowMoved(WindowMoved),
+    WindowResize(WindowResize),
+    KeyPressed(KeyPressed),
+    KeyReleased(KeyReleased),
+    MouseButtonPressed(MouseButtonPressed),
+    MouseButtonReleased(MouseButtonReleased),
+    MouseMoved(MouseMoved),
+    MouseScrolled(MouseScrolled),
 }
 
-impl EventSystem {
-    pub fn new() -> Self {
-        Self {
-            event_queue: Vec::with_capacity(128),
-        }
-    }
-
-    pub fn dispatch<F: FnMut(Event) -> bool>(event: &mut Event, mut func: F) {
-        //self.event_queue.push(event);
-
-        event.handled = func(event.clone());
-    }
-
-    pub fn process_events(&mut self, engine: &mut GameEngine) {
-        while let Some(event) = self.event_queue.pop() {
-            match event {
-                // Handle specific event types
-                _ => {}
+macro_rules! makeFn {
+    ($name:ident, $type:ty) => {
+        pub fn $name(&self) -> $type {
+            match self {
+                RGEvent::WindowClose(event) => event.$name(),
+                RGEvent::WindowFocus(event) => event.$name(),
+                RGEvent::WindowLostFocus(event) => event.$name(),
+                RGEvent::WindowMoved(event) => event.$name(),
+                RGEvent::WindowResize(event) => event.$name(),
+                RGEvent::KeyPressed(event) => event.$name(),
+                RGEvent::KeyReleased(event) => event.$name(),
+                RGEvent::MouseButtonPressed(event) => event.$name(),
+                RGEvent::MouseButtonReleased(event) => event.$name(),
+                RGEvent::MouseMoved(event) => event.$name(),
+                RGEvent::MouseScrolled(event) => event.$name(),
             }
         }
+    };
+}
+
+impl RGEvent {
+    makeFn!(get_type, EventType);
+    makeFn!(get_category, EventCategory);
+    makeFn!(is_handled, bool);
+
+    pub fn is_in_category(&self, category: EventCategory) -> bool {
+        self.get_category().contains(category)
     }
 }
+
+macro_rules! create_event_struct {
+    ($event_type:ident, $event_category:expr $(, $field_name:ident: $field_type:ty)*) => {
+        paste! {
+            #[derive(Debug, Clone, Copy)]
+            pub struct $event_type {
+                pub handled: bool,
+                $(pub $field_name: $field_type),*
+            }
+
+
+            impl $event_type {
+                /// Constructor for the event struct
+                pub fn new($($field_name: $field_type),*) -> Self {
+                    Self {
+                        handled: false,
+                        $($field_name),*
+                    }
+                }
+                pub fn get_type(&self) -> EventType {
+                    EventType::$event_type
+                }
+
+                pub fn get_category(&self) -> EventCategory {
+                    $event_category
+                }
+
+                pub fn to_string(&self) -> String {
+                    format!("{:?}", self.get_type())
+                }
+
+                pub fn is_in_category(&self, category: EventCategory) -> bool {
+                    self.get_category().contains(category)
+                }
+
+                pub fn is_handled(&self) -> bool{
+                    self.handled
+                }
+                pub fn set_handled(&mut self, b: bool){
+                    self.handled = b;
+                }
+            }
+        }
+    };
+}
+
+create_event_struct!(WindowClose, EventCategory::Engine);
+create_event_struct!(WindowFocus, EventCategory::Engine);
+create_event_struct!(WindowLostFocus, EventCategory::Engine);
+create_event_struct!(WindowMoved, EventCategory::Engine, x:i32, y:i32);
+create_event_struct!(WindowResize, EventCategory::Engine, width:i32, height:i32);
+
+create_event_struct!(KeyPressed, EventCategory::Keyboard | EventCategory::Input, key:glfw::Key, repeat:bool);
+create_event_struct!(KeyReleased,EventCategory::Keyboard | EventCategory::Input, key:glfw::Key);
+create_event_struct!(MouseButtonPressed,EventCategory::MouseButton | EventCategory::Input | EventCategory::Mouse, button:glfw::MouseButton);
+create_event_struct!(MouseButtonReleased,EventCategory::MouseButton | EventCategory::Input | EventCategory::Mouse, button:glfw::MouseButton);
+
+create_event_struct!(MouseMoved, EventCategory::Input | EventCategory::Mouse, x:f64, y:f64);
+create_event_struct!(MouseScrolled, EventCategory::Input | EventCategory::Mouse,x_offset:f64, y_offset:f64);

@@ -1,8 +1,8 @@
 use std::sync::mpsc::Receiver;
 
-use glfw::{Action, Callback, Context, Error, WindowEvent, WindowHint};
+use glfw::{Callback, Context, Error, WindowEvent, WindowHint};
 
-use crate::{log::rge_engine_error, rgevent};
+use crate::log::rge_engine_error;
 
 use super::events::*;
 
@@ -64,46 +64,61 @@ impl WindowManager {
     }
 
     pub fn handle_events(&mut self) -> Option<RGEvent> {
-        self.glfw.poll_events();
-        for (_, event) in glfw::flush_messages(&self.events) {
-            match event {
-                glfw::WindowEvent::Key(key, _, action, _) => match action {
-                    glfw::Action::Press => {
-                        return Some(rgevent!(KeyPressed, key, false));
-                    }
-                    glfw::Action::Release => {
-                        return Some(rgevent!(KeyReleased, key));
-                    }
-                    glfw::Action::Repeat => {
-                        return Some(rgevent!(KeyPressed, key, true));
-                    }
-                },
-                glfw::WindowEvent::MouseButton(button, action, _) => match action {
-                    glfw::Action::Press | glfw::Action::Repeat => {
-                        return Some(rgevent!(MouseButtonPressed, button));
-                    }
-                    glfw::Action::Release => {
-                        return Some(rgevent!(MouseButtonReleased, button));
-                    }
-                },
-                glfw::WindowEvent::CursorPos(x, y) => return Some(rgevent!(MouseMoved, x, y)),
-                glfw::WindowEvent::Scroll(x, y) => return Some(rgevent!(MouseScrolled, x, y)),
-                glfw::WindowEvent::Pos(x, y) => return Some(rgevent!(WindowMoved, x, y)),
-                glfw::WindowEvent::Size(x, y) => {
-                    self.data.width = x as u32;
-                    self.data.height = y as u32;
-                    return Some(rgevent!(WindowResize, x, y));
+    for (_, event) in glfw::flush_messages(&self.events) {
+        match event {
+            glfw::WindowEvent::Key(key, _, action, _) => match action {
+                glfw::Action::Press => {
+                    return Some(RGEvent::KeyPressed(KeyPressedEvent::new(key, false)));
                 }
-                glfw::WindowEvent::Focus(true) => return Some(rgevent!(WindowFocus)),
-                glfw::WindowEvent::Focus(false) => return Some(rgevent!(WindowLostFocus)),
-                glfw::WindowEvent::Close => return Some(rgevent!(WindowClose)),
-
-                _ => continue, // Skip unsupported events
-            }
+                glfw::Action::Release => {
+                    return Some(RGEvent::KeyReleased(KeyReleasedEvent::new(key)));
+                }
+                glfw::Action::Repeat => {
+                    return Some(RGEvent::KeyPressed(KeyPressedEvent::new(key, true)));
+                }
+            },
+            _ => continue, // Skip unsupported events
         }
-        None // Return None if no events are found
     }
+    None // Return None if no events are found
+}
+    }
+    //glfw::WindowEvent::Focus(focused) => {
+    //    if focused {
+    //        Some(RGEvent::WindowFocus(WindowFocusEvent::new(false)))
+    //    } else {
+    //        Some(RGEvent::WindowLostFocus(WindowLostFocusEvent::new(false)))
+    //    }
+    //}
+    //glfw::WindowEvent::Pos(x, y) => {
+    //    Some(RGEvent::WindowMoved(WindowMovedEvent::new(false, x, y)))
+    //}
+    ////glfw::WindowEvent::Size(width, height) => Some(RGEvent::WindowResize(
+    ////    WindowResizeEvent::new(false, width, height),
+    ////)),
+    ////glfw::WindowEvent::Key(key, scode, action, mods) => {
+    ////    Some(RGEvent::KeyPressed(KeyPressedEvent::new(
+    ////        false, key, ,
+    ////    )))
+    ////}
+    ////glfw::WindowEvent::Key(key, scode, action, mods) => {
+    ////    Some(RGEvent::KeyReleased(KeyReleasedEvent::new(false, key)))
+    ////}
+    ////glfw::WindowEvent::MouseButton(button, action, mods) => Some(
+    ////    RGEvent::MouseButtonPressed(MouseButtonPressedEvent::new(false, button)),
+    ////),
+    ////glfw::WindowEvent::MouseButton(button, action, mods) => Some(
+    ////    RGEvent::MouseButtonReleased(MouseButtonReleasedEvent::new(false, button)),
+    ////),
+    //glfw::WindowEvent::CursorPos(x, y) => {
+    //    Some(RGEvent::MouseMoved(MouseMovedEvent::new(false, x, y)))
+    //}
+    //glfw::WindowEvent::Scroll(x_offset, y_offset) => Some(RGEvent::MouseScrolled(
+    //    MouseScrolledEvent::new(false, x_offset, y_offset),
+    //)),
+
     pub fn poll_events<F: FnMut(glfw::WindowEvent)>(&mut self, mut callback: F) {
+        self.glfw.poll_events();
         for (_, event) in glfw::flush_messages(&self.events) {
             callback(event);
         }

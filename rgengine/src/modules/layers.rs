@@ -1,11 +1,11 @@
-use super::window::WindowManager;
+use super::{events::RGEvent, window::WindowManager};
 
 // may need to work on this trait
 pub trait Layer {
     fn on_attach(&mut self) {}
     fn on_detach(&mut self) {}
     fn on_update(&mut self, _dt: f32) {}
-    fn on_event(&mut self, _event: &glfw::WindowEvent) {}
+    fn on_event(&mut self, _event: &RGEvent) {}
     fn on_render(&mut self, _window: &mut WindowManager) {}
     fn get_id(&self) -> usize;
 }
@@ -76,7 +76,7 @@ impl LayerStack {
         }
     }
 
-    pub fn on_event(&mut self, event: glfw::WindowEvent) {
+    pub fn on_event(&mut self, event: &RGEvent) {
         for layer in self.layers.iter_mut().rev() {
             layer.on_event(&event);
         }

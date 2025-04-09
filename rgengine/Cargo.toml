@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 spdlog-rs = { version = "0.4.1", features = ["source-location"] }
-bitflag = "0.10.1" 
+bitflags = "2.9.0" 
 paste = "1.0.15"
 
 
