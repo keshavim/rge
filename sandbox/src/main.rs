@@ -1,28 +1,27 @@
-use rgengine::application::Application;
-use rgengine::layer::Layer;
-use rgengine::{engine_run, rge_critical, rge_error, rge_info};
+use rgengine::{
+    engine::GameEngine,
+    layers::{Layer, LayerStack},
+    rge_info, rge_warn,
+};
 
-#[derive(Default)]
-struct Example_layer {
-    id: usize,
+#[derive(Debug, Default)]
+struct ExampleLayer {
+    pub id: usize,
 }
 
-impl Layer for Example_layer {
-    fn on_update(&self) {
-        rge_info!("example layer: update");
+impl Layer for ExampleLayer {
+    fn get_id(&self) -> usize {
+        self.id
     }
-    fn on_event(&self, e: &dyn rgengine::events::Event) {
-        rge_error!("{}", e.to_string());
-    }
-    fn id(&self) -> u32 {
-        todo!()
-    }
-    fn on_attach(&self) {
-        todo!()
-    }
-    fn on_detach(&self) {
-        todo!()
+    fn on_update(&mut self, dt: f32) {
+        rge_info!("{:?}", self.id);
     }
 }
 
-engine_run!();
+fn main() {
+    let _ = rgengine::log::init();
+
+    let mut engine = GameEngine::new();
+    //
+    engine.run();
+}
