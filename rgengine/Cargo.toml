@@ -8,7 +8,7 @@ spdlog-rs = { version = "0.4.1", features = ["source-location"] }
 bitflags = "2.9.0" 
 paste = "1.0.15"
 
-
+cgmath = "0.18.0"
 glfw = "0.31.0"
 imgui-opengl-renderer = "0.5.0"
 gl = "0.14.0"

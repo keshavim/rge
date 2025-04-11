@@ -1,11 +1,13 @@
-use std::time::Instant;
+use std::{cell::RefCell, rc::Rc, time::Instant};
 
 use crate::{layers::Layer, window::WindowManager};
 use glfw::MouseButton;
 use imgui::Context;
 use imgui_glfw_rs::ImguiGLFW;
 
-use super::events::RGEvent;
+use super::events::{EventCategory, RGEvent};
+
+//will remove glfw support pack age and ave it builtin later
 
 //have remove imgui_glfw_rs and make it on my own
 pub struct ImGuiLayer {
@@ -14,13 +16,15 @@ pub struct ImGuiLayer {
     last_frame: Instant,
     id: usize,
     mouse_press: [bool; 5],
+    window: Rc<RefCell<WindowManager>>,
 }
 
 //window manager may be better as a shared referance
 impl ImGuiLayer {
-    pub fn new(window: &mut WindowManager, id: usize) -> Self {
+    pub fn new(window: &Rc<RefCell<WindowManager>>, id: usize) -> Self {
         let mut imgui = Context::create();
-        let imgui_glfw = ImguiGLFW::new(&mut imgui, window.native_window());
+        let mut window = Rc::clone(window);
+        let imgui_glfw = ImguiGLFW::new(&mut imgui, window.borrow_mut().native_window_mut());
 
         // Configure ImGui
         imgui.set_ini_filename(None);
@@ -34,6 +38,7 @@ impl ImGuiLayer {
             last_frame: Instant::now(),
             id,
             mouse_press: [false; 5],
+            window,
         }
     }
 
@@ -47,29 +52,24 @@ impl Layer for ImGuiLayer {
         // Update logic if needed
     }
 
-    fn on_render(&mut self, window: &mut WindowManager) {
-        let now = Instant::now();
-        let delta_time = now.duration_since(self.last_frame).as_secs_f32();
-        self.last_frame = now;
-
-        // Pass delta_time to ImGui
-        self.imgui.io_mut().delta_time = delta_time;
-
-        self.imgui.io_mut().display_size = [window.data.width as f32, window.data.height as f32];
-
+    fn on_render(&mut self) {
+        let mut w = self.window.borrow_mut();
         // Start new frame
         let ui = self
             .imgui_glfw
-            .frame(window.native_window(), &mut self.imgui);
+            .frame(w.native_window_mut(), &mut self.imgui);
 
         // Demo window
         ui.show_demo_window(&mut true);
 
         // Render commands will be handled by the renderer
-        self.imgui_glfw.draw(ui, window.native_window());
+        self.imgui_glfw.draw(ui, w.native_window_mut());
     }
     //will make this work with my events
     fn on_event(&mut self, event: &RGEvent) {
+        if !event.is_in_category(EventCategory::Input) {
+            return;
+        }
         match *event {
             RGEvent::MouseButtonPressed(e) => {
                 let index = match e.button {
@@ -110,6 +110,9 @@ impl Layer for ImGuiLayer {
             }
             RGEvent::KeyReleased(e) => {
                 self.imgui.io_mut().keys_down[e.key as usize] = false;
+            }
+            RGEvent::KeyTyped(e) => {
+                self.imgui.io_mut().add_input_character(e.key);
             }
             _ => {}
         }

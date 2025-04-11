@@ -6,7 +6,7 @@ pub trait Layer {
     fn on_detach(&mut self) {}
     fn on_update(&mut self, _dt: f32) {}
     fn on_event(&mut self, _event: &RGEvent) {}
-    fn on_render(&mut self, _window: &mut WindowManager) {}
+    fn on_render(&mut self) {}
     fn get_id(&self) -> usize;
 }
 
@@ -70,9 +70,9 @@ impl LayerStack {
         }
     }
 
-    pub fn render(&mut self, window: &mut WindowManager) {
+    pub fn render(&mut self) {
         for layer in &mut self.layers {
-            layer.on_render(window);
+            layer.on_render();
         }
     }
 

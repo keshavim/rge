@@ -15,6 +15,7 @@ pub enum EventType {
     WindowLostFocus,
     KeyPressed,
     KeyReleased,
+    KeyTyped,
     MouseButtonPressed,
     MouseButtonReleased,
     MouseMoved,
@@ -50,6 +51,7 @@ pub enum RGEvent {
     WindowResize(WindowResize),
     KeyPressed(KeyPressed),
     KeyReleased(KeyReleased),
+    KeyTyped(KeyTyped),
     MouseButtonPressed(MouseButtonPressed),
     MouseButtonReleased(MouseButtonReleased),
     MouseMoved(MouseMoved),
@@ -67,6 +69,7 @@ macro_rules! makeFn {
                 RGEvent::WindowResize(event) => event.$name(),
                 RGEvent::KeyPressed(event) => event.$name(),
                 RGEvent::KeyReleased(event) => event.$name(),
+                RGEvent::KeyTyped(event) => event.$name(),
                 RGEvent::MouseButtonPressed(event) => event.$name(),
                 RGEvent::MouseButtonReleased(event) => event.$name(),
                 RGEvent::MouseMoved(event) => event.$name(),
@@ -139,6 +142,7 @@ create_event_struct!(WindowResize, EventCategory::Engine, width:i32, height:i32)
 
 create_event_struct!(KeyPressed, EventCategory::Keyboard | EventCategory::Input, key:glfw::Key, repeat:bool);
 create_event_struct!(KeyReleased,EventCategory::Keyboard | EventCategory::Input, key:glfw::Key);
+create_event_struct!(KeyTyped,EventCategory::Keyboard | EventCategory::Input, key:char);
 create_event_struct!(MouseButtonPressed,EventCategory::MouseButton | EventCategory::Input | EventCategory::Mouse, button:glfw::MouseButton);
 create_event_struct!(MouseButtonReleased,EventCategory::MouseButton | EventCategory::Input | EventCategory::Mouse, button:glfw::MouseButton);
 

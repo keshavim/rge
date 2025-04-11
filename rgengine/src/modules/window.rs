@@ -17,7 +17,7 @@ pub struct WindowData {
 // window/mod.rs
 pub struct WindowManager {
     pub data: WindowData,
-    glfw: glfw::Glfw,
+    pub glfw: glfw::Glfw,
     pub window: glfw::Window,
     events: Receiver<(f64, glfw::WindowEvent)>,
 }
@@ -97,7 +97,7 @@ impl WindowManager {
                 glfw::WindowEvent::Focus(true) => return Some(rgevent!(WindowFocus)),
                 glfw::WindowEvent::Focus(false) => return Some(rgevent!(WindowLostFocus)),
                 glfw::WindowEvent::Close => return Some(rgevent!(WindowClose)),
-
+                glfw::WindowEvent::Char(c) => return Some(rgevent!(KeyTyped, c)),
                 _ => continue, // Skip unsupported events
             }
         }
@@ -109,15 +109,10 @@ impl WindowManager {
         }
     }
 
-    pub fn swap_buffers(&mut self) {
-        self.window.swap_buffers();
+    pub fn native_window(&self) -> &glfw::Window {
+        &self.window
     }
-
-    pub fn get_glfw(&self) -> &glfw::Glfw {
-        &self.glfw
-    }
-
-    pub fn native_window(&mut self) -> &mut glfw::Window {
+    pub fn native_window_mut(&mut self) -> &mut glfw::Window {
         &mut self.window
     }
     pub fn is_vsync(&self) -> bool {
